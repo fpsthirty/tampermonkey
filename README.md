@@ -13,7 +13,7 @@
 - Скрывает элементы с атрибутом `data-popper-escaped` спустя несколько секунд после отсутствия курсора на сайдбаре 
 - Умная пауза для экономии ресурсов
 
-**Код скрипта:**   [twitch-popper-hider.js](https://github.com/fpsthirty/tampermonkey/raw/main/scripts/twitch/twitch-popper-hider.js)<br>
+**Код скрипта:**   [twitch-popper-hider.js](https://github.com/fpsthirty/tampermonkey/blob/main/scripts/twitch/twitch-popper-hider.js)<br>
 **Поддерживаемые страницы:** `https://www.twitch.tv/*`<br>
 **Консольные команды:**
 ```javascript

@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Twitch Popper Hider v2.16
-// @namespace    http://tampermonkey.net/
+// @namespace    https://www.tampermonkey.net/
 // @version      2.16
 // @description  скрытие всплывашки о предлагаемом стриме в сайдбаре спустя 2.5–5сек после потери фокуса с сайдбара
 // @author       fpsthirty + DeepSeek
