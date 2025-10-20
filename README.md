@@ -19,6 +19,7 @@
 popperHiderStatus()    // Показать статус скрипта
 resumePopperHider()    // Принудительно возобновить проверки
 ```
+<img width="450" height="288" alt="image" src="https://github.com/user-attachments/assets/3477b805-23c6-4772-8cbe-48411c2c5050" />
 
 ## 🛠️ Установка
 
