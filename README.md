@@ -14,7 +14,7 @@
 - Умная пауза для экономии ресурсов;
 - Показ элементов при наведении на навигацию;
 
-**Код скрипта:**   [twitch-popper-hider.js](https://github.com/fpsthirty/tampermonkey/raw/main/scripts/twitch/twitch-popper-hider.js)<br>
+**Код скрипта:**   [twitch-popper-hider.js](https://github.com/fpsthirty/tampermonkey/blob/main/scripts/twitch/twitch-popper-hider.js)<br>
 **Поддерживаемые страницы:** `https://www.twitch.tv/*`<br>
 **Консольные команды:**
 ```javascript
