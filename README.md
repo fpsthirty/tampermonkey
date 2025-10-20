@@ -25,7 +25,7 @@ resumePopperHider()    // Принудительно возобновить пр
 ### 1. Установите Tampermonkey
 - [Chrome Web Store](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo)
 - [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/)
-- [Microsoft Edge](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd)<br>
+- [Microsoft Edge](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd)<p>
 заметка: не забудьте закрепить иконку на верхней панели браузера, а также [включить режим разработчика](https://www.tampermonkey.net/faq.php#Q209) в браузере
 
 ### 2. Установите скрипт
