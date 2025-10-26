@@ -73,7 +73,7 @@
             return;
         }
 
-        // Проверяем, что заголовок не пустой (старая логика)
+        // Проверяем, что заголовок не пустой
         const titleText = titleElement.textContent || titleElement.innerText || '';
         debugLog(`Current title content: "${titleText}"`);
         debugLog(`Title length: ${titleText.length}, trimmed length: ${titleText.trim().length}`);
