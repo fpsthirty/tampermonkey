@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitch Chat Commands from Title
 // @namespace    http://tampermonkey.net/
-// @version      1.16
+// @version      1.17
 // @description  Make !commands in stream title clickable
 // @author       fpsthirty + DeepSeek
 // @match        https://www.twitch.tv/*
@@ -57,6 +57,9 @@
     let lastCommandClickTime = 0;
     const CLICK_THROTTLE_MS = 1000; // 1 секунда
 
+    // Храним последний URL, на котором проверяли заголовок стрима
+    let lastCheckedUrl = '';
+
     function init() {
         if (isInitialized) {
             debugLog('Already initialized, skipping...');
@@ -73,7 +76,7 @@
             return;
         }
 
-        // Проверяем, что заголовок не пустой
+        // Проверяем, что заголовок не пустой (старая логика)
         const titleText = titleElement.textContent || titleElement.innerText || '';
         debugLog(`Current title content: "${titleText}"`);
         debugLog(`Title length: ${titleText.length}, trimmed length: ${titleText.trim().length}`);
@@ -96,6 +99,10 @@
         // Сохраняем оригинальный текст
         lastOriginalTitle = getOriginalTitleText(titleElement);
         debugLog(`Initial original title saved: "${lastOriginalTitle}"`);
+
+        // Сохраняем текущий URL при инициализации
+        lastCheckedUrl = window.location.href;
+        debugLog(`Initial URL saved: "${lastCheckedUrl}"`);
 
         // Обрабатываем заголовок сразу при загрузке
         debugLog('Performing initial title processing...');
@@ -198,14 +205,28 @@
         navObserver = new MutationObserver(function(mutations) {
             const now = Date.now();
             const timeSinceLastCheck = now - lastNavCheck;
+            const currentUrl = window.location.href;
 
-            // Проверяем не чаще чем раз в 60 секунд
-            if (timeSinceLastCheck < 60000) {
+            // Если URL изменился, сбрасываем таймер, блокирующий потенциально избыточные проверки заголовка стрима
+            if (currentUrl !== lastCheckedUrl) {
+                debugLog(`URL changed from "${lastCheckedUrl}" to "${currentUrl}", resetting navigation timer`);
+                lastCheckedUrl = currentUrl;
+                lastNavCheck = 0; // Сбрасываем таймер при смене URL
+            }
+
+            // Проверяем не чаще чем раз в 60 секунд (если URL не менялся)
+            if (timeSinceLastCheck < 60000 && !isHovering) {
                 return;
             }
 
+            // Если наведён курсор — игнорируем таймер и проверяем сразу
+            if (isHovering) {
+                debugLog('Hovering detected, bypassing 60-second throttle...');
+            }
+
+
             lastNavCheck = now;
-            debugLog('Navigation change detected (throttled), checking for new content...');
+            debugLog(`Navigation check throttled - ${timeSinceLastCheck}ms since last check (and not hovering)`);
 
             if (navCheckTimeout) {
                 clearTimeout(navCheckTimeout);
@@ -322,7 +343,7 @@
         const originalHTML = titleElement.innerHTML;
 
         // Регулярное выражение для поиска команд
-        const commandRegex = /(^|\s)(![\w\u0400-\u04FF\d]+)/g;
+        const commandRegex = /(^|[\s(,\[.])(![\w\u0400-\u04FF\d]+)/g;
 
         // Проверяем, есть ли команды в тексте ДО обработки
         const preCheckMatches = [];
@@ -396,17 +417,17 @@
 
         buttons.forEach(btn => {
             btn.style.cssText = `
-                background: rgba(145, 71, 255, 0.2);
+                background: rgba(145, 71, 255, 0);
                 border: 1px solid #9147ff;
                 color: #9147ff;
                 padding: 2px 6px;
-                margin: 1px 2px;
+                margin: 1px 1px;
                 border-radius: 4px;
                 cursor: pointer;
                 font-size: inherit;
                 font-family: inherit;
                 display: inline;
-                transition: all 0.3s ease;
+                transition: all 0.2s ease;
                 position: relative;
             `;
 
