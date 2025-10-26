@@ -28,7 +28,7 @@ resumePopperHider()    // Принудительно возобновить пр
 - кнопки добавляются только в live-трансляциях, т.к. чат недоступен на записях (VOD),
 - фоновые проверки по обновлению заголовка трансляции с поиском команд: по умолчанию раз в минуту, а также при каждом наведении курсора на заголовок
 
-**Код скрипта:**   [chat-commands-from-title.js](https://github.com/fpsthirty/tampermonkey/blob/main/scripts/twitch/twitch-chat-commands-from-title.js)<br>
+**Код скрипта:**   [twitch-chat-commands-from-title.js](https://github.com/fpsthirty/tampermonkey/blob/main/scripts/twitch/twitch-chat-commands-from-title.js)<br>
 **Поддерживаемые страницы:** `https://www.twitch.tv/*`<br>
 **Консольные команды:**
 ```javascript
