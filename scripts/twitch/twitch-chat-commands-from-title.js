@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitch Chat Commands from Title
 // @namespace    http://tampermonkey.net/
-// @version      1.17
+// @version      1.18
 // @description  Make !commands in stream title clickable
 // @author       fpsthirty + DeepSeek
 // @match        https://www.twitch.tv/*
@@ -342,8 +342,11 @@
         // Сохраняем исходный HTML
         const originalHTML = titleElement.innerHTML;
 
-        // Регулярное выражение для поиска команд
-        const commandRegex = /(^|[\s(,\[.])(![\w\u0400-\u04FF\d]+)/g;
+        // регулярное выражение для поиска команд
+        // Разрешаем перед !: начало строки, пробелы, (, [, ,, .
+        // Разрешаем внутри команды: буквы, цифры, кириллица, точка
+
+        const commandRegex = /(^|[\s(,\[.])(![\w\u0400-\u04FF\d.]+)/g;
 
         // Проверяем, есть ли команды в тексте ДО обработки
         const preCheckMatches = [];
