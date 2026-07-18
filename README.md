@@ -57,9 +57,9 @@ getTwitchDebugStatus()    // Проверить статус отладки
 **Поддерживаемые страницы:** `https://2gis.ru/*`<br>
 **Консольные команды:**
 ```javascript
-__2gisTabs.export()    // экспорт вкладок
-__2gisTabs.import()    // импорт вкладок
-__2gisTabs.clear()    // удаление всех вкладок
+__2gisBookmarks.export()    // экспорт вкладок
+__2gisBookmarks.import()    // импорт вкладок
+__2gisBookmarks.clear()    // удаление всех вкладок
 ```
 
 ![img/2gis/2gis-bookmarks.png](https://github.com/fpsthirty/tampermonkey/raw/main/img/2gis/2gis-bookmarks.png)

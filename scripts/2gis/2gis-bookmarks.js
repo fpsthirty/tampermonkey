@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         2GIS easy bookmarks
 // @namespace    http://tampermonkey.net/
-// @version      3.6
+// @version      3.7
 // @description  Удобные вкладки на 2gis.ru
 // @author       fpsthirty + DeepSeek
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=2gis.ru
@@ -521,13 +521,13 @@
     }
 
     // Консольные команды
-    window.__2gisTabs = {
+    window.__2gisBookmarks = {
         // Экспорт вкладок
         export: function() {
             const data = tabs.map(t => t.text);
             const json = JSON.stringify(data);
             console.log('📋 Скопируйте строку ниже для последующего импорта:');
-            console.log(`__2gisTabs.import(${json})`);
+            console.log(`__2gisBookmarks.import(${json})`);
         },
 
         // Импорт вкладок
@@ -708,9 +708,9 @@
         // Выводим информацию о консольных командах
         console.log('2GIS easy bookmarks is ready to use.');
         console.log('📌 Доступные команды:');
-        console.log('__2gisTabs.export() - экспорт вкладок');
-        console.log('__2gisTabs.import(JSON_строка) - импорт вкладок');
-        console.log('__2gisTabs.clear() - удалить все вкладки');
+        console.log('__2gisBookmarks.export() - экспорт вкладок');
+        console.log('__2gisBookmarks.import(JSON_строка) - импорт вкладок');
+        console.log('__2gisBookmarks.clear() - удалить все вкладки');
     }
 
     // Ждем загрузки страницы
