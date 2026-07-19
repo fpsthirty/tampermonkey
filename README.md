@@ -45,7 +45,7 @@ getTwitchDebugStatus()    // Проверить статус отладки
 
 #### 📜 2GIS easy bookmarks
 **Код скрипта:**   [2gis-bookmarks.js](https://github.com/fpsthirty/tampermonkey/blob/main/scripts/2gis/2gis-bookmarks.js)<br>
-**Описание:** добавляет удобную систему вкладок на сайт 2gis.ru; вкладки позволяют быстро сохранять и вставлять часто используемые поисковые запросы — кликаем на вкладку, кликаем на поле поиска и вручную вставляем-отправляем полученное имя вкладки (2gis не позволил автоматическую отправку поискового запроса, поэтому отправка вручную).<p>
+**Описание:** добавляет удобную систему вкладок на сайт 2gis.ru; вкладки позволяют быстро сохранять поисковые запросы и в один клик их использовать.<p>
 
 **Функции:**
 - Управление вкладками: 
@@ -60,6 +60,8 @@ getTwitchDebugStatus()    // Проверить статус отладки
 __2gisBookmarks.export()    // экспорт вкладок
 __2gisBookmarks.import()    // импорт вкладок
 __2gisBookmarks.clear()    // удаление всех вкладок
+__2gisBookmarks.enableDebug()    // Включить вывод логов в консоли
+__2gisBookmarks.disableDebug()    // Отключить вывод логов
 ```
 
 ![img/2gis/2gis-bookmarks.png](https://github.com/fpsthirty/tampermonkey/raw/main/img/2gis/2gis-bookmarks.png)

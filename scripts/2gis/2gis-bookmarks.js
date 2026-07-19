@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         2GIS easy bookmarks
 // @namespace    http://tampermonkey.net/
-// @version      3.7
+// @version      3.8
 // @description  Удобные вкладки на 2gis.ru
 // @author       fpsthirty + DeepSeek
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=2gis.ru
@@ -19,6 +19,23 @@
     let dragOverTab = null;
     let editingTabElement = null;
     const STORAGE_KEY = '2gis_custom_tabs';
+    const DEBUG_KEY = '2gis_debug_mode';
+
+    // Функция для проверки режима отладки
+    function isDebugEnabled() {
+        try {
+            return localStorage.getItem(DEBUG_KEY) === 'true';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // Функция для логирования с проверкой режима отладки
+    function debugLog(...args) {
+        if (isDebugEnabled()) {
+            console.log(...args);
+        }
+    }
 
     // Создаем основной контейнер для вкладок
     const container = document.createElement('div');
@@ -71,12 +88,11 @@
             return emoji;
         }
         // Если нет эмоджи, обрезаем до 17 символов, если больше 20
-        // cleanText уже является строкой благодаря extractEmojiAndText
         const displayText = cleanText.length > 20 ? cleanText.slice(0, 17) + '…' : cleanText;
         return displayText;
     }
 
-    // Функция получения чистого текста для копирования и подсказки
+    // Функция получения чистого текста для поиска и подсказки
     function getCleanText(text) {
         const { text: cleanText } = extractEmojiAndText(text);
         return cleanText;
@@ -85,6 +101,112 @@
     // Функция проверки, нужно ли показывать alt-текст
     function shouldShowAlt(fullText, displayText) {
         return fullText !== displayText;
+    }
+
+    // Функция симуляции ввода текста и отправки формы
+    function simulateTypingAndSubmit(element, text) {
+        // 1. Фокус на поле
+        element.focus();
+
+        // 2. Очищаем поле
+        element.value = '';
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+
+        // 3. Побуквенный ввод текста
+        for (let char of text) {
+            // keydown
+            element.dispatchEvent(new KeyboardEvent('keydown', {
+                key: char,
+                bubbles: true,
+                cancelable: true
+            }));
+
+            // Обновляем значение через нативный сеттер
+            const nativeSetter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype, 'value'
+            ).set;
+            nativeSetter.call(element, element.value + char);
+
+            // События input и keyup
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+            element.dispatchEvent(new KeyboardEvent('keyup', {
+                key: char,
+                bubbles: true,
+                cancelable: true
+            }));
+        }
+
+        // 4. Финальный change
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+
+        setTimeout(() => {
+            // 5. Находим родительскую форму
+            let form = element.closest('form');
+
+            if (form) {
+                // Если форма найдена — создаем и отправляем событие submit
+                const submitEvent = new Event('submit', {
+                    bubbles: true,
+                    cancelable: true
+                });
+                form.dispatchEvent(submitEvent);
+                debugLog(`✅ Поиск выполнен: "${text}"`);
+            } else {
+                // Если формы нет — пробуем альтернативный метод
+                debugLog('⚠️ Форма не найдена, пробуем найти через parent.');
+
+                // Попытка найти форму через ancestors
+                let parent = element.parentElement;
+                while (parent) {
+                    if (parent.tagName && parent.tagName.toLowerCase() === 'form') {
+                        const submitEvent = new Event('submit', {
+                            bubbles: true,
+                            cancelable: true
+                        });
+                        parent.dispatchEvent(submitEvent);
+                        debugLog(`✅ Поиск выполнен: "${text}"`);
+                        return;
+                    }
+                    parent = parent.parentElement;
+                }
+
+                // Крайний случай: если формы нет, пробуем обычный Enter
+                debugLog('⚠️ Форма не найдена, отправляем Enter.');
+                element.dispatchEvent(new KeyboardEvent('keydown', {
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true,
+                    cancelable: true
+                }));
+                element.dispatchEvent(new KeyboardEvent('keyup', {
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true,
+                    cancelable: true
+                }));
+            }
+        }, 100);
+    }
+
+    // Функция выполнения поиска
+    function performSearch(text) {
+        const input = document.evaluate(
+            "//input[@enterkeyhint='search']",
+            document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null
+        ).singleNodeValue;
+
+        if (input) {
+            simulateTypingAndSubmit(input, text);
+        } else {
+            debugLog('❌ Поле поиска не найдено');
+        }
     }
 
     // Функция закрытия всех панелей действий
@@ -205,13 +327,13 @@
             this.style.background = 'rgba(255, 255, 255, .85)';
         });
 
-        // ЛКМ - копирование в буфер обмена (только чистый текст)
+        // ЛКМ - выполнение поиска
         tab.addEventListener('click', function(e) {
             if (isEditing || e.button !== 0) return;
             e.stopPropagation();
             closeAllActionPanels();
-            const cleanText = this.dataset.cleanText || this.dataset.fullText;
-            copyToClipboard(cleanText, this);
+            const searchText = this.dataset.cleanText || this.dataset.fullText;
+            performSearch(searchText);
         });
 
         // ПКМ - показать меню редактирования/удаления
@@ -463,22 +585,6 @@
         }, 10);
     }
 
-    // Функция копирования в буфер обмена
-    function copyToClipboard(text, tabElement) {
-        navigator.clipboard.writeText(text).then(() => {
-            // Анимация изменения цвета фона
-            const originalBg = tabElement.style.background;
-            tabElement.style.transition = 'background 0.25s ease';
-            tabElement.style.background = '#bbb';
-
-            setTimeout(() => {
-                tabElement.style.background = originalBg;
-            }, 250);
-        }).catch(err => {
-            console.error('Ошибка копирования:', err);
-        });
-    }
-
     // Функции для работы с localStorage
     function saveTabs() {
         try {
@@ -493,7 +599,7 @@
             });
             localStorage.setItem(STORAGE_KEY, JSON.stringify(tabs));
         } catch (e) {
-            console.error('Ошибка сохранения:', e);
+            debugLog('Ошибка сохранения:', e);
         }
     }
 
@@ -516,7 +622,7 @@
                 }
             }
         } catch (e) {
-            console.error('Ошибка загрузки:', e);
+            debugLog('Ошибка загрузки:', e);
         }
     }
 
@@ -526,7 +632,7 @@
         export: function() {
             const data = tabs.map(t => t.text);
             const json = JSON.stringify(data);
-            console.log('📋 Скопируйте строку ниже для последующего импорта:');
+            console.log('📋 Скопируйте и строку ниже и выполните её в консоли браузера для последующего импорта:');
             console.log(`__2gisBookmarks.import(${json})`);
         },
 
@@ -566,6 +672,35 @@
             saveTabs();
             console.log('🗑️ Все вкладки удалены');
             movePlaceholderToEnd();
+        },
+
+        // Включение режима отладки
+        enableDebug: function() {
+            try {
+                localStorage.setItem(DEBUG_KEY, 'true');
+                console.log('🔍 Режим отладки: ВКЛЮЧЕН');
+                console.log('Теперь будут отображаться все служебные сообщения');
+            } catch (e) {
+                console.error('Ошибка включения режима отладки:', e);
+            }
+        },
+
+        // Выключение режима отладки
+        disableDebug: function() {
+            try {
+                localStorage.setItem(DEBUG_KEY, 'false');
+                console.log('🔍 Режим отладки: ВЫКЛЮЧЕН');
+                console.log('Служебные сообщения скрыты');
+            } catch (e) {
+                console.error('Ошибка выключения режима отладки:', e);
+            }
+        },
+
+        // Проверка состояния режима отладки
+        isDebugEnabled: function() {
+            const enabled = isDebugEnabled();
+            console.log(`🔍 Режим отладки: ${enabled ? 'ВКЛЮЧЕН' : 'ВЫКЛЮЧЕН'}`);
+            return enabled;
         }
     };
 
@@ -709,8 +844,11 @@
         console.log('2GIS easy bookmarks is ready to use.');
         console.log('📌 Доступные команды:');
         console.log('__2gisBookmarks.export() - экспорт вкладок');
-        console.log('__2gisBookmarks.import(JSON_строка) - импорт вкладок');
+        console.log('__2gisBookmarks.import([Array]) - импорт вкладок');
         console.log('__2gisBookmarks.clear() - удалить все вкладки');
+        console.log('__2gisBookmarks.enableDebug() - включить режим отладки');
+        console.log('__2gisBookmarks.disableDebug() - выключить режим отладки');
+        console.log('__2gisBookmarks.isDebugEnabled() - проверить состояние отладки');
     }
 
     // Ждем загрузки страницы
