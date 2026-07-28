@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         Avito Helper
 // @namespace    http://tampermonkey.net/
-// @version      3.6
+// @version      3.9
 // @description  Утилиты для Avito
 // @author       fpsthirty + DeepSeek
 // @match        https://www.avito.ru/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=avito.ru
 // @grant        GM_setClipboard
 // @grant        GM_addStyle
+// @grant        unsafeWindow
 // ==/UserScript==
 
 (function() {
@@ -31,8 +32,8 @@
         console.log(`[Avito Debug] ${timestamp} - ${message}`, data);
     }
 
-    // ========== Консольные команды ==========
-    const commands = {
+/*    // ========== Консольные команды через unsafeWindow ==========
+    unsafeWindow.__avito = {
         enableDebug: function() {
             try {
                 localStorage.setItem(DEBUG_KEY, 'true');
@@ -60,15 +61,16 @@
         }
     };
 
-    window.__avito = commands;
+    // Дублируем в window для удобства
+    window.__avito = unsafeWindow.__avito;
 
     if (isDebugEnabled()) {
         debugEnabled = true;
         console.log('[Avito Helper] Режим отладки включен из сохраненных настроек');
     }
 
-    // console.log('[Avito Helper] Скрипт загружен. Для управления дебагом: __avito.enableDebug() или __avito.disableDebug()'); todo: надо реализовать без unsafeWindow
-
+    console.log('[Avito Helper] Скрипт загружен. Для управления дебагом: __avito.enableDebug()');
+*/
     // ========== Конфигурация разделов ==========
     const SECTIONS = {
         'common': {
@@ -150,38 +152,8 @@
         return element;
     }
 
-    function getCalculatedBlockWidth() {
-        const currentWidth = window.innerWidth;
-
-        // Если ширина окна >= 1720px, вычисляем ширину блока по формуле
-        if (currentWidth >= MIN_WINDOW_WIDTH) {
-            const extraSpace = currentWidth - MIN_WINDOW_WIDTH;
-            const calculatedWidth = (extraSpace / 2) + MIN_BLOCK_WIDTH;
-            debugLog('getCalculatedBlockWidth: вычисленная ширина по формуле', {
-                windowWidth: currentWidth,
-                extraSpace: extraSpace,
-                calculatedWidth: calculatedWidth,
-                minBlockWidth: MIN_BLOCK_WIDTH
-            });
-            return calculatedWidth;
-        }
-
-        // Иначе используем margin-left
-        const marginLeft = getMarginLeft();
-        const blockWidth = marginLeft - PADDING_LEFT - PADDING_RIGHT;
-        debugLog('getCalculatedBlockWidth: ширина из margin-left', {
-            marginLeft: marginLeft,
-            blockWidth: blockWidth
-        });
-        return blockWidth;
-    }
-
     function getMarginLeft() {
-        // Если ширина окна >= 1720px, возвращаем 200 (достаточное значение для показа блока)
         if (window.innerWidth >= MIN_WINDOW_WIDTH) {
-            debugLog('getMarginLeft: ширина окна >= 1720px, возвращаем 200 (достаточное значение)', {
-                windowWidth: window.innerWidth
-            });
             return 200;
         }
 
@@ -194,7 +166,6 @@
             const computedStyle = window.getComputedStyle(element);
             cachedMarginLeft = parseFloat(computedStyle.marginLeft) || 0;
             isMarginLeftInitialized = true;
-            debugLog('getMarginLeft: первичное вычисление', { marginLeft: cachedMarginLeft });
             return cachedMarginLeft;
         }
         return 0;
@@ -205,13 +176,9 @@
         if (newWidth !== windowWidth) {
             windowWidth = newWidth;
 
-            // Если ширина >= 1720px, кэшируем как 200
             if (windowWidth >= MIN_WINDOW_WIDTH) {
                 cachedMarginLeft = 200;
                 isMarginLeftInitialized = true;
-                debugLog('refreshMarginLeftOnResize: ширина >= 1720px, установлено значение 200', {
-                    windowWidth: windowWidth
-                });
                 return;
             }
 
@@ -220,10 +187,6 @@
                 const computedStyle = window.getComputedStyle(element);
                 cachedMarginLeft = parseFloat(computedStyle.marginLeft) || 0;
                 isMarginLeftInitialized = true;
-                debugLog('refreshMarginLeftOnResize: обновлено при изменении ширины окна', {
-                    marginLeft: cachedMarginLeft,
-                    windowWidth: windowWidth
-                });
             }
         }
     }
@@ -292,11 +255,8 @@
 
         const marginLeft = getMarginLeft();
         if (marginLeft >= 150) {
-            debugLog('initCopyLinkFeature_RealtyOffer: метод отключен (marginLeft >= 150)', { marginLeft });
             return;
         }
-
-        debugLog('initCopyLinkFeature_RealtyOffer: метод запущен', { marginLeft });
 
         const DIV_HEIGHT = 60;
         const TRIGGER_ZONE_HEIGHT = 60;
@@ -376,10 +336,8 @@
         function checkAndHideIfSidebarVisible() {
             if (isSideBlockVisible()) {
                 container.classList.add('hidden-by-sidebar');
-                debugLog('initCopyLinkFeature_RealtyOffer: блок скрыт (видна боковая панель)');
             } else {
                 container.classList.remove('hidden-by-sidebar');
-                debugLog('initCopyLinkFeature_RealtyOffer: блок показан (боковая панель скрыта)');
             }
         }
 
@@ -395,7 +353,6 @@
                 attributes: true,
                 attributeFilter: ['class']
             });
-            debugLog('initCopyLinkFeature_RealtyOffer: настроен наблюдатель за боковым блоком');
         }
 
         let showTimeout = null;
@@ -406,7 +363,6 @@
 
         function showDiv() {
             if (container.classList.contains('hidden-by-sidebar')) {
-                debugLog('initCopyLinkFeature_RealtyOffer: попытка показать блок, но он скрыт боковой панелью');
                 return;
             }
 
@@ -421,7 +377,6 @@
             container.classList.remove('hide');
             container.classList.add('show');
             isDivVisible = true;
-            debugLog('initCopyLinkFeature_RealtyOffer: див показан');
         }
 
         function hideDiv() {
@@ -439,13 +394,11 @@
                 container.classList.remove('hide');
                 isDivVisible = false;
                 hideTimeout = null;
-                debugLog('initCopyLinkFeature_RealtyOffer: див скрыт');
             }, ANIMATION_DURATION_HIDE);
         }
 
         function tryShowWithDelay() {
             if (isSideBlockVisible()) {
-                debugLog('initCopyLinkFeature_RealtyOffer: попытка показать блок, но видна боковая панель');
                 return;
             }
 
@@ -507,7 +460,6 @@
             }
 
             GM_setClipboard(currentUrl, 'text');
-            debugLog('initCopyLinkFeature_RealtyOffer: ссылка скопирована', { url: currentUrl });
 
             const originalText = text.innerHTML;
             text.innerHTML = '✅ Ссылка скопирована!';
@@ -555,7 +507,6 @@
                     attributes: true,
                     attributeFilter: ['class']
                 });
-                debugLog('initCopyLinkFeature_RealtyOffer: боковой блок найден, настроен наблюдатель');
                 checkAndHideIfSidebarVisible();
             }
         });
@@ -572,9 +523,9 @@
             return;
         }
 
-        debugLog('initCopyLocationFeature_RealtyMap: метод запущен');
-
         const OVERLAY_DURATION = 250;
+        let clickTimeout = null;
+        let isProcessing = false;
 
         GM_addStyle(`
             .avito-location-copy {
@@ -659,11 +610,16 @@
 
                 const textToCopy = originalText;
                 GM_setClipboard(textToCopy, 'text');
-                debugLog('initCopyLocationFeature_RealtyMap: локация скопирована', { text: textToCopy });
             });
         }
 
         function findAndProcessLocationElements() {
+            if (isProcessing) {
+                return;
+            }
+
+            isProcessing = true;
+
             const elements = document.evaluate(
                 "//div[@data-marker='item-location']",
                 document,
@@ -678,42 +634,28 @@
                     processLocationElement(element);
                 }
             }
+
+            if (clickTimeout) {
+                clearTimeout(clickTimeout);
+            }
+            clickTimeout = setTimeout(() => {
+                isProcessing = false;
+                clickTimeout = null;
+            }, 1000);
         }
 
-        const observer = new MutationObserver(function(mutations) {
-            let shouldCheck = false;
-
-            for (let mutation of mutations) {
-                if (mutation.addedNodes.length > 0) {
-                    shouldCheck = true;
-                    break;
-                }
-                if (mutation.type === 'attributes' || mutation.type === 'characterData') {
-                    const target = mutation.target;
-                    if (target.nodeType === Node.ELEMENT_NODE) {
-                        const element = target.closest('[data-marker="item-location"]');
-                        if (element && element.dataset.avitoProcessed !== 'true') {
-                            shouldCheck = true;
-                            break;
-                        }
-                    }
-                }
+        document.addEventListener('click', function(e) {
+            if (clickTimeout) {
+                clearTimeout(clickTimeout);
+                clickTimeout = null;
+                isProcessing = false;
             }
-
-            if (shouldCheck) {
+            clickTimeout = setTimeout(() => {
                 findAndProcessLocationElements();
-            }
+            }, 1000);
         });
 
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            characterData: true,
-            attributeFilter: ['data-marker', 'class', 'style']
-        });
-
-        findAndProcessLocationElements();
+        setTimeout(findAndProcessLocationElements, 500);
     }
 
     function initCopyAddressFeature_RealtyOffer() {
@@ -721,8 +663,6 @@
         if (currentSection !== 'realty' && currentSection !== 'realty-offer') {
             return;
         }
-
-        debugLog('initCopyAddressFeature_RealtyOffer: метод запущен');
 
         GM_addStyle(`
             .avito-address-copy {
@@ -828,15 +768,6 @@
 
         let ignoreMarginLeft = false;
         let ignoreTimeout = null;
-
-        debugLog('initSideAddressBlock_RealtyOffer: инициализация бокового блока');
-
-        const initialMarginLeft = getMarginLeft();
-        debugLog('initSideAddressBlock_RealtyOffer: первичное получение margin-left', {
-            marginLeft: initialMarginLeft,
-            windowWidth: window.innerWidth,
-            minWindowWidth: MIN_WINDOW_WIDTH
-        });
 
         GM_addStyle(`
             .avito-side-address-block {
@@ -1032,8 +963,6 @@
         sideBlock.appendChild(addressWrapper);
         document.body.appendChild(sideBlock);
 
-        debugLog('initSideAddressBlock_RealtyOffer: блок создан и добавлен в DOM');
-
         let originalAddressElement = null;
         let linkOverlayTimeout = null;
         let addressOverlayTimeout = null;
@@ -1060,85 +989,53 @@
                 } else {
                     textSpan.textContent = addressElement.innerText.trim();
                 }
-                debugLog('initSideAddressBlock_RealtyOffer: обновлен адрес', { address: textSpan.textContent });
             } else if (!addressElement) {
                 originalAddressElement = null;
                 textSpan.textContent = '';
-                debugLog('initSideAddressBlock_RealtyOffer: элемент с адресом не найден');
             }
         }
 
         function updateBlockVisibility() {
             if (ignoreMarginLeft) {
-                debugLog('initSideAddressBlock_RealtyOffer: игнорирование margin-left (режим стабилизации)');
                 return;
             }
 
-            // Проверяем, нужно ли показывать блок
             let shouldShow = false;
             let blockWidth = 0;
 
             const currentWidth = window.innerWidth;
 
-            // Если ширина окна >= 1720px, используем формулу
             if (currentWidth >= MIN_WINDOW_WIDTH) {
                 const extraSpace = currentWidth - MIN_WINDOW_WIDTH;
                 blockWidth = (extraSpace / 2) + MIN_BLOCK_WIDTH;
                 shouldShow = true;
-                debugLog('initSideAddressBlock_RealtyOffer: ширина >= 1720px, блок показан по формуле', {
-                    windowWidth: currentWidth,
-                    extraSpace: extraSpace,
-                    blockWidth: blockWidth,
-                    minBlockWidth: MIN_BLOCK_WIDTH
-                });
             } else {
-                // Иначе используем margin-left
                 const marginLeft = getMarginLeft();
                 const minRequiredWidth = MIN_BLOCK_WIDTH + PADDING_LEFT + PADDING_RIGHT;
                 shouldShow = marginLeft >= minRequiredWidth;
                 blockWidth = marginLeft - PADDING_LEFT - PADDING_RIGHT;
-
-                debugLog('initSideAddressBlock_RealtyOffer: проверка видимости через margin-left', {
-                    marginLeft: marginLeft,
-                    minRequiredWidth: minRequiredWidth,
-                    shouldShow: shouldShow,
-                    blockWidth: blockWidth,
-                    windowWidth: currentWidth
-                });
             }
 
             if (shouldShow && blockWidth >= MIN_BLOCK_WIDTH) {
                 sideBlock.style.width = blockWidth + 'px';
                 sideBlock.classList.add('visible');
                 if (!lastBlockState) {
-                    debugLog('initSideAddressBlock_RealtyOffer: блок ПОКАЗАН', {
-                        width: blockWidth + 'px',
-                        windowWidth: currentWidth
-                    });
                     lastBlockState = true;
 
                     if (ignoreTimeout) {
                         clearTimeout(ignoreTimeout);
                     }
                     ignoreMarginLeft = true;
-                    debugLog('initSideAddressBlock_RealtyOffer: включен режим игнорирования margin-left на 2 секунды');
 
                     ignoreTimeout = setTimeout(() => {
                         ignoreMarginLeft = false;
                         ignoreTimeout = null;
-                        debugLog('initSideAddressBlock_RealtyOffer: режим игнорирования margin-left ОТКЛЮЧЕН');
                         updateBlockVisibility();
                     }, 2000);
                 }
             } else {
                 sideBlock.classList.remove('visible');
                 if (lastBlockState) {
-                    debugLog('initSideAddressBlock_RealtyOffer: блок СКРЫТ', {
-                        reason: shouldShow ? 'blockWidth < MIN_BLOCK_WIDTH' : 'условие не выполнено',
-                        blockWidth: blockWidth,
-                        minBlockWidth: MIN_BLOCK_WIDTH,
-                        windowWidth: currentWidth
-                    });
                     lastBlockState = false;
                 }
             }
@@ -1169,7 +1066,6 @@
                 currentUrl = currentUrl.substring(0, questionMarkIndex);
             }
             GM_setClipboard(currentUrl, 'text');
-            debugLog('initSideAddressBlock_RealtyOffer: ссылка скопирована', { url: currentUrl });
         });
 
         addressWrapper.addEventListener('click', function(e) {
@@ -1188,15 +1084,10 @@
             }, OVERLAY_DURATION);
 
             GM_setClipboard(textToCopy, 'text');
-            debugLog('initSideAddressBlock_RealtyOffer: адрес скопирован', { address: textToCopy });
         });
 
         window.addEventListener('resize', function() {
             refreshMarginLeftOnResize();
-            debugLog('initSideAddressBlock_RealtyOffer: событие resize - обновление видимости', {
-                windowWidth: window.innerWidth,
-                marginLeft: cachedMarginLeft
-            });
             updateBlockVisibility();
         });
 
@@ -1210,7 +1101,6 @@
                         const addressElement = target.closest('[itemprop="address"]');
                         if (addressElement) {
                             shouldUpdate = true;
-                            debugLog('initSideAddressBlock_RealtyOffer: обнаружено изменение адреса');
                             break;
                         }
                     }
@@ -1218,7 +1108,6 @@
             }
 
             if (shouldUpdate) {
-                debugLog('initSideAddressBlock_RealtyOffer: запуск обновления блока (изменение адреса)');
                 updateBlock();
             }
         });
@@ -1231,41 +1120,31 @@
             attributeFilter: ['itemprop', 'class', 'style']
         });
 
-        debugLog('initSideAddressBlock_RealtyOffer: MutationObserver настроен');
-
         updateBlock();
 
         if (document.readyState === 'complete') {
-            debugLog('initSideAddressBlock_RealtyOffer: страница полностью загружена, дополнительные проверки');
             setTimeout(() => {
-                debugLog('initSideAddressBlock_RealtyOffer: дополнительная проверка через 100ms');
                 updateBlock();
             }, 100);
 
             setTimeout(() => {
-                debugLog('initSideAddressBlock_RealtyOffer: дополнительная проверка через 500ms');
                 updateBlock();
             }, 500);
 
             setTimeout(() => {
-                debugLog('initSideAddressBlock_RealtyOffer: дополнительная проверка через 1000ms');
                 updateBlock();
             }, 1000);
         } else {
             window.addEventListener('load', function() {
-                debugLog('initSideAddressBlock_RealtyOffer: событие load, дополнительные проверки');
                 setTimeout(() => {
-                    debugLog('initSideAddressBlock_RealtyOffer: дополнительная проверка после load через 100ms');
                     updateBlock();
                 }, 100);
 
                 setTimeout(() => {
-                    debugLog('initSideAddressBlock_RealtyOffer: дополнительная проверка после load через 500ms');
                     updateBlock();
                 }, 500);
 
                 setTimeout(() => {
-                    debugLog('initSideAddressBlock_RealtyOffer: дополнительная проверка после load через 1000ms');
                     updateBlock();
                 }, 1000);
             });
@@ -1287,11 +1166,8 @@
         ).singleNodeValue;
 
         if (!ulElement) {
-            debugLog('initSelectCharacteristics_RealtyOffer: ulElement не найден');
             return;
         }
-
-        debugLog('initSelectCharacteristics_RealtyOffer: метод запущен');
 
         const STORAGE_KEY = 'avito_selected_characteristics';
 
@@ -1353,7 +1229,6 @@
                 const saved = localStorage.getItem(STORAGE_KEY);
                 return saved ? JSON.parse(saved) : [];
             } catch (e) {
-                debugLog('initSelectCharacteristics_RealtyOffer: ошибка чтения localStorage', { error: e });
                 return [];
             }
         }
@@ -1361,10 +1236,7 @@
         function saveCharacteristics(chars) {
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(chars));
-                debugLog('initSelectCharacteristics_RealtyOffer: характеристики сохранены', { chars });
-            } catch (e) {
-                debugLog('initSelectCharacteristics_RealtyOffer: ошибка сохранения в localStorage', { error: e });
-            }
+            } catch (e) {}
         }
 
         const hintBlock = document.createElement('div');
@@ -1376,6 +1248,16 @@
         let selectedCharacteristics = [];
         let isUlActive = false;
         let isHintHidden = false;
+
+        // Получаем все текущие li из ul
+        function getCurrentLiTexts() {
+            const liElements = ulElement.querySelectorAll('li');
+            const texts = [];
+            liElements.forEach(li => {
+                texts.push(li.textContent.trim());
+            });
+            return texts;
+        }
 
         function updateSideCharacteristics() {
             let charContainer = document.querySelector('.avito-side-characteristics');
@@ -1397,13 +1279,17 @@
 
             charContainer.innerHTML = '';
 
-            if (selectedCharacteristics.length > 0) {
+            // Фильтруем только те характеристики, которые есть в текущем ul
+            const currentLiTexts = getCurrentLiTexts();
+            const validCharacteristics = selectedCharacteristics.filter(char => currentLiTexts.includes(char));
+
+            if (validCharacteristics.length > 0) {
                 const title = document.createElement('div');
                 title.className = 'char-title';
                 title.textContent = 'Характеристики';
                 charContainer.appendChild(title);
 
-                selectedCharacteristics.forEach((char, index) => {
+                validCharacteristics.forEach((char, index) => {
                     const charItem = document.createElement('div');
                     charItem.className = 'char-item';
 
@@ -1416,11 +1302,15 @@
                     removeBtn.textContent = '✕';
                     removeBtn.addEventListener('click', function(e) {
                         e.stopPropagation();
-                        selectedCharacteristics.splice(index, 1);
-                        saveCharacteristics(selectedCharacteristics);
+                        // Удаляем из общего списка
+                        const globalIndex = selectedCharacteristics.indexOf(char);
+                        if (globalIndex !== -1) {
+                            selectedCharacteristics.splice(globalIndex, 1);
+                            saveCharacteristics(selectedCharacteristics);
+                        }
                         updateLiStates();
                         updateSideCharacteristics();
-                        if (selectedCharacteristics.length === 0) {
+                        if (selectedCharacteristics.length === 0 || !getCurrentLiTexts().some(text => selectedCharacteristics.includes(text))) {
                             ulElement.classList.remove('avito-characteristics-ul');
                             isUlActive = false;
                             hintBlock.classList.remove('active');
@@ -1448,35 +1338,29 @@
             });
         }
 
-        function applySavedCharacteristics() {
-            const savedChars = getSavedCharacteristics();
-            if (savedChars.length === 0) {
-                debugLog('initSelectCharacteristics_RealtyOffer: сохраненных характеристик нет');
-                return;
-            }
+        // Загружаем сохраненные характеристики и проверяем их наличие
+        function loadAndApplySavedCharacteristics() {
+            const saved = getSavedCharacteristics();
+            if (saved.length === 0) return;
 
-            debugLog('initSelectCharacteristics_RealtyOffer: загружены сохраненные характеристики', { savedChars });
+            const currentLiTexts = getCurrentLiTexts();
+            // Оставляем только те, которые есть в текущем ul
+            const validSaved = saved.filter(char => currentLiTexts.includes(char));
 
-            const liElements = ulElement.querySelectorAll('li');
-            let foundAny = false;
-
-            liElements.forEach(li => {
-                const text = li.textContent.trim();
-                if (savedChars.includes(text) && !selectedCharacteristics.includes(text)) {
-                    selectedCharacteristics.push(text);
-                    li.classList.add('selected');
-                    foundAny = true;
-                }
-            });
-
-            if (foundAny) {
-                debugLog('initSelectCharacteristics_RealtyOffer: применены сохраненные характеристики', {
-                    count: selectedCharacteristics.length,
-                    chars: selectedCharacteristics
-                });
+            if (validSaved.length > 0) {
+                selectedCharacteristics = validSaved;
+                updateLiStates();
                 updateSideCharacteristics();
+                debugLog('initSelectCharacteristics_RealtyOffer: загружены валидные сохраненные характеристики', {
+                    saved: validSaved,
+                    allSaved: saved,
+                    currentLiTexts: currentLiTexts
+                });
             } else {
-                debugLog('initSelectCharacteristics_RealtyOffer: ни одна сохраненная характеристика не найдена в текущем списке');
+                debugLog('initSelectCharacteristics_RealtyOffer: сохраненные характеристики не найдены в текущем ul', {
+                    saved: saved,
+                    currentLiTexts: currentLiTexts
+                });
             }
         }
 
@@ -1487,7 +1371,6 @@
             hintBlock.classList.add('hidden');
             isHintHidden = true;
             updateSideCharacteristics();
-            debugLog('initSelectCharacteristics_RealtyOffer: режим выбора ВКЛЮЧЕН');
         }
 
         function disableSelectionMode() {
@@ -1500,7 +1383,6 @@
             saveCharacteristics(selectedCharacteristics);
             updateLiStates();
             updateSideCharacteristics();
-            debugLog('initSelectCharacteristics_RealtyOffer: режим выбора ВЫКЛЮЧЕН');
         }
 
         hintBlock.addEventListener('click', function() {
@@ -1523,11 +1405,9 @@
                 if (index === -1) {
                     selectedCharacteristics.push(text);
                     this.classList.add('selected');
-                    debugLog('initSelectCharacteristics_RealtyOffer: добавлена характеристика', { text });
                 } else {
                     selectedCharacteristics.splice(index, 1);
                     this.classList.remove('selected');
-                    debugLog('initSelectCharacteristics_RealtyOffer: удалена характеристика', { text });
                 }
 
                 saveCharacteristics(selectedCharacteristics);
@@ -1539,7 +1419,8 @@
             });
         });
 
-        applySavedCharacteristics();
+        // Загружаем сохраненные характеристики
+        loadAndApplySavedCharacteristics();
 
         hintBlock.classList.remove('hidden');
         isHintHidden = false;
@@ -1577,6 +1458,16 @@
                     }
                 });
             });
+
+            // При изменении ul перепроверяем валидность сохраненных характеристик
+            const currentLiTexts = getCurrentLiTexts();
+            const validCharacteristics = selectedCharacteristics.filter(char => currentLiTexts.includes(char));
+            if (validCharacteristics.length !== selectedCharacteristics.length) {
+                selectedCharacteristics = validCharacteristics;
+                saveCharacteristics(selectedCharacteristics);
+                updateLiStates();
+                updateSideCharacteristics();
+            }
         });
 
         observer.observe(ulElement, {
