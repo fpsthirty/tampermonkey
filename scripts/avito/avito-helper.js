@@ -621,7 +621,7 @@
             isProcessing = true;
 
             const elements = document.evaluate(
-                "//div[@data-marker='item-location']",
+                "(//div[@data-marker='item-location'])[1]",
                 document,
                 null,
                 XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
