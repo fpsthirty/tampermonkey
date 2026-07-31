@@ -31,8 +31,8 @@
         const timestamp = new Date().toLocaleTimeString();
         console.log(`[Avito Debug] ${timestamp} - ${message}`, data);
     }
-
-/*    // ========== Консольные команды через unsafeWindow ==========
+/*
+    // ========== Консольные команды через unsafeWindow ==========
     unsafeWindow.__avito = {
         enableDebug: function() {
             try {
@@ -1337,11 +1337,14 @@
             }
         `);
 
-        function getSavedCharacteristics() {
+        // ГЛОБАЛЬНЫЙ список всех выбранных характеристик
+        let allSelectedCharacteristics = [];
+
+        function getAllCharacteristics() {
             try {
                 const saved = localStorage.getItem(STORAGE_KEY);
                 const parsed = saved ? JSON.parse(saved) : [];
-                debugLog('initSelectCharacteristics_RealtyOffer: загружены характеристики из localStorage', { count: parsed.length });
+                debugLog('initSelectCharacteristics_RealtyOffer: загружены все характеристики из localStorage', { count: parsed.length, chars: parsed });
                 return parsed;
             } catch (e) {
                 debugLog('initSelectCharacteristics_RealtyOffer: ошибка чтения localStorage', { error: e });
@@ -1349,23 +1352,76 @@
             }
         }
 
-        function saveCharacteristics(chars) {
+        function saveAllCharacteristics(chars) {
             try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(chars));
-                debugLog('initSelectCharacteristics_RealtyOffer: характеристики сохранены в localStorage', { count: chars.length });
+                // Удаляем дубликаты
+                const uniqueChars = [...new Set(chars)];
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(uniqueChars));
+                allSelectedCharacteristics = uniqueChars;
+                debugLog('initSelectCharacteristics_RealtyOffer: СОХРАНЕНЫ ВСЕ ХАРАКТЕРИСТИКИ', {
+                    count: uniqueChars.length,
+                    chars: uniqueChars
+                });
             } catch (e) {
                 debugLog('initSelectCharacteristics_RealtyOffer: ошибка сохранения в localStorage', { error: e });
             }
         }
 
+        // Функция добавления характеристики в глобальный список
+        function addCharacteristicToGlobal(char) {
+            debugLog('initSelectCharacteristics_RealtyOffer: ДОБАВЛЕНИЕ характеристики в глобальный список', { char });
+            const current = getAllCharacteristics();
+            if (!current.includes(char)) {
+                current.push(char);
+                saveAllCharacteristics(current);
+                debugLog('initSelectCharacteristics_RealtyOffer: характеристика добавлена', {
+                    char: char,
+                    total: current.length,
+                    chars: current
+                });
+            } else {
+                debugLog('initSelectCharacteristics_RealtyOffer: характеристика уже существует', { char });
+            }
+        }
+
+        // Функция удаления характеристики из глобального списка
+        function removeCharacteristicFromGlobal(char) {
+            debugLog('initSelectCharacteristics_RealtyOffer: УДАЛЕНИЕ характеристики из глобального списка', { char });
+            const current = getAllCharacteristics();
+            const index = current.indexOf(char);
+            if (index !== -1) {
+                current.splice(index, 1);
+                saveAllCharacteristics(current);
+                debugLog('initSelectCharacteristics_RealtyOffer: характеристика удалена', {
+                    char: char,
+                    remaining: current.length,
+                    chars: current
+                });
+            } else {
+                debugLog('initSelectCharacteristics_RealtyOffer: характеристика не найдена для удаления', { char });
+            }
+        }
+
+        // Функция получения характеристик для текущего объявления
+        function getCharacteristicsForCurrentOffer() {
+            const all = getAllCharacteristics();
+            const currentLiTexts = getCurrentLiTexts();
+            const valid = all.filter(char => currentLiTexts.includes(char));
+            debugLog('initSelectCharacteristics_RealtyOffer: характеристики для текущего объявления', {
+                all: all,
+                currentLiTexts: currentLiTexts,
+                valid: valid
+            });
+            return valid;
+        }
+
         const hintBlock = document.createElement('div');
         hintBlock.className = 'avito-select-hint';
-        hintBlock.textContent = 'Кликните, чтобы выбрать "характеристика-значение", которые нужно всегда выводить в блоке краткой информации об объекте';
+        hintBlock.textContent = 'Кликните, чтобы выбрать "характеристика-значение", которые нужно всегда выводить в\u00A0блоке краткой информации об\u00A0объекте';
 
         ulElement.parentNode.insertBefore(hintBlock, ulElement.nextSibling);
         debugLog('initSelectCharacteristics_RealtyOffer: блок-подсказка создан');
 
-        let selectedCharacteristics = [];
         let isUlActive = false;
         let isHintHidden = false;
 
@@ -1404,12 +1460,12 @@
 
             charContainer.innerHTML = '';
 
-            const currentLiTexts = getCurrentLiTexts();
-            const validCharacteristics = selectedCharacteristics.filter(char => currentLiTexts.includes(char));
+            // Получаем характеристики для текущего объявления
+            const validCharacteristics = getCharacteristicsForCurrentOffer();
 
-            debugLog('initSelectCharacteristics_RealtyOffer: валидных характеристик', {
-                total: selectedCharacteristics.length,
-                valid: validCharacteristics.length
+            debugLog('initSelectCharacteristics_RealtyOffer: валидных характеристик для отображения', {
+                count: validCharacteristics.length,
+                chars: validCharacteristics
             });
 
             if (validCharacteristics.length > 0) {
@@ -1431,15 +1487,12 @@
                     removeBtn.textContent = '✕';
                     removeBtn.addEventListener('click', function(e) {
                         e.stopPropagation();
-                        debugLog('initSelectCharacteristics_RealtyOffer: удаление характеристики', { char });
-                        const globalIndex = selectedCharacteristics.indexOf(char);
-                        if (globalIndex !== -1) {
-                            selectedCharacteristics.splice(globalIndex, 1);
-                            saveCharacteristics(selectedCharacteristics);
-                        }
+                        debugLog('initSelectCharacteristics_RealtyOffer: клик по крестику удаления', { char });
+                        // Удаляем из ГЛОБАЛЬНОГО списка
+                        removeCharacteristicFromGlobal(char);
                         updateLiStates();
                         updateSideCharacteristics();
-                        if (selectedCharacteristics.length === 0 || !getCurrentLiTexts().some(text => selectedCharacteristics.includes(text))) {
+                        if (getAllCharacteristics().length === 0) {
                             ulElement.classList.remove('avito-characteristics-ul');
                             isUlActive = false;
                             hintBlock.classList.remove('active');
@@ -1454,50 +1507,23 @@
                 });
                 debugLog('initSelectCharacteristics_RealtyOffer: характеристики отображены', { count: validCharacteristics.length });
             } else {
-                debugLog('initSelectCharacteristics_RealtyOffer: нет валидных характеристик для отображения');
+                debugLog('initSelectCharacteristics_RealtyOffer: нет валидных характеристик для отображения на этой странице');
             }
         }
 
         function updateLiStates() {
             debugLog('initSelectCharacteristics_RealtyOffer: обновление состояния li элементов');
             const liElements = ulElement.querySelectorAll('li');
+            const validCharacteristics = getCharacteristicsForCurrentOffer();
+
             liElements.forEach(li => {
                 const text = li.textContent.trim();
-                if (selectedCharacteristics.includes(text)) {
+                if (validCharacteristics.includes(text)) {
                     li.classList.add('selected');
                 } else {
                     li.classList.remove('selected');
                 }
             });
-        }
-
-        function loadAndApplySavedCharacteristics() {
-            debugLog('initSelectCharacteristics_RealtyOffer: загрузка сохраненных характеристик');
-            const saved = getSavedCharacteristics();
-            if (saved.length === 0) {
-                debugLog('initSelectCharacteristics_RealtyOffer: сохраненных характеристик нет');
-                return;
-            }
-
-            const currentLiTexts = getCurrentLiTexts();
-            debugLog('initSelectCharacteristics_RealtyOffer: текущие li элементы', { count: currentLiTexts.length });
-
-            const validSaved = saved.filter(char => currentLiTexts.includes(char));
-            debugLog('initSelectCharacteristics_RealtyOffer: валидные сохраненные характеристики', {
-                saved: saved,
-                validSaved: validSaved
-            });
-
-            if (validSaved.length > 0) {
-                selectedCharacteristics = validSaved;
-                updateLiStates();
-                updateSideCharacteristics();
-                debugLog('initSelectCharacteristics_RealtyOffer: применены сохраненные характеристики', {
-                    count: validSaved.length
-                });
-            } else {
-                debugLog('initSelectCharacteristics_RealtyOffer: сохраненные характеристики не найдены в текущем ul');
-            }
         }
 
         function enableSelectionMode() {
@@ -1517,8 +1543,6 @@
             hintBlock.classList.remove('active');
             hintBlock.classList.remove('hidden');
             isHintHidden = false;
-            selectedCharacteristics = [];
-            saveCharacteristics(selectedCharacteristics);
             updateLiStates();
             updateSideCharacteristics();
         }
@@ -1532,6 +1556,7 @@
             }
         });
 
+        // Обработчик клика по элементам li
         ulElement.querySelectorAll('li').forEach(li => {
             li.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -1542,51 +1567,48 @@
                 }
 
                 const text = this.textContent.trim();
-                const index = selectedCharacteristics.indexOf(text);
-                debugLog('initSelectCharacteristics_RealtyOffer: клик по характеристике', { text, action: index === -1 ? 'добавление' : 'удаление' });
+                const allChars = getAllCharacteristics();
+                const index = allChars.indexOf(text);
 
                 if (index === -1) {
-                    selectedCharacteristics.push(text);
+                    // ДОБАВЛЯЕМ в ГЛОБАЛЬНЫЙ список
+                    addCharacteristicToGlobal(text);
                     this.classList.add('selected');
                 } else {
-                    selectedCharacteristics.splice(index, 1);
+                    // Удаляем из ГЛОБАЛЬНОГО списка
+                    removeCharacteristicFromGlobal(text);
                     this.classList.remove('selected');
                 }
 
-                saveCharacteristics(selectedCharacteristics);
                 updateSideCharacteristics();
 
-                if (selectedCharacteristics.length === 0) {
+                if (getAllCharacteristics().length === 0) {
                     disableSelectionMode();
                 }
             });
         });
 
-        loadAndApplySavedCharacteristics();
+        // Загружаем и применяем сохраненные характеристики
+        const initialChars = getCharacteristicsForCurrentOffer();
+        debugLog('initSelectCharacteristics_RealtyOffer: начальное состояние', {
+            chars: initialChars,
+            allChars: getAllCharacteristics()
+        });
 
         hintBlock.classList.remove('hidden');
         isHintHidden = false;
         isUlActive = false;
         ulElement.classList.remove('avito-characteristics-ul');
-        debugLog('initSelectCharacteristics_RealtyOffer: инициализация завершена');
 
-        // Убираем постоянный MutationObserver - делаем только одну проверку
+        // Обновляем состояние li и боковой блок
+        updateLiStates();
+        updateSideCharacteristics();
+
         // Выполняем обновление один раз после загрузки
         function performInitialUpdate() {
             debugLog('initSelectCharacteristics_RealtyOffer: выполнение первоначального обновления');
-            // Проверяем валидность характеристик после загрузки
-            const currentLiTexts = getCurrentLiTexts();
-            const validCharacteristics = selectedCharacteristics.filter(char => currentLiTexts.includes(char));
-            if (validCharacteristics.length !== selectedCharacteristics.length) {
-                debugLog('initSelectCharacteristics_RealtyOffer: обновление валидных характеристик', {
-                    before: selectedCharacteristics.length,
-                    after: validCharacteristics.length
-                });
-                selectedCharacteristics = validCharacteristics;
-                saveCharacteristics(selectedCharacteristics);
-                updateLiStates();
-                updateSideCharacteristics();
-            }
+            updateLiStates();
+            updateSideCharacteristics();
         }
 
         if (document.readyState === 'complete') {
