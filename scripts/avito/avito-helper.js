@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Avito Helper
 // @namespace    http://tampermonkey.net/
-// @version      3.9
+// @version      4.3
 // @description  Утилиты для Avito
 // @author       fpsthirty + DeepSeek
 // @match        https://www.avito.ru/*
@@ -61,15 +61,14 @@
         }
     };
 
-    // Дублируем в window для удобства
     window.__avito = unsafeWindow.__avito;
 
     if (isDebugEnabled()) {
         debugEnabled = true;
-        console.log('[Avito Helper] Режим отладки включен из сохраненных настроек');
+        debugLog('Режим отладки включен из сохраненных настроек');
     }
 
-    console.log('[Avito Helper] Скрипт загружен. Для управления дебагом: __avito.enableDebug()');
+    debugLog('Скрипт загружен. Для управления дебагом: __avito.enableDebug()');
 */
     // ========== Конфигурация разделов ==========
     const SECTIONS = {
@@ -99,13 +98,30 @@
         }
     };
 
+    // ========== Кэш проверки разделов ==========
+    let sectionCache = {
+        'common': false,
+        'realty': false,
+        'realty-offer': false,
+        'realty-map': false
+    };
+    let isSectionCacheInitialized = false;
+
     function checkSection(sectionName) {
+        if (isSectionCacheInitialized) {
+            return sectionCache[sectionName];
+        }
+
         const section = SECTIONS[sectionName];
         if (!section) return false;
 
         const locators = section.locators;
-        if (locators.length === 0) return true;
+        if (locators.length === 0) {
+            sectionCache[sectionName] = true;
+            return true;
+        }
 
+        let allFound = true;
         for (let xpath of locators) {
             const element = document.evaluate(
                 xpath,
@@ -116,20 +132,58 @@
             ).singleNodeValue;
 
             if (!element) {
-                return false;
+                allFound = false;
+                debugLog(`checkSection: локатор не найден для ${sectionName}`, { xpath });
+                break;
             }
         }
-        return true;
+
+        sectionCache[sectionName] = allFound;
+        if (allFound) {
+            debugLog(`checkSection: раздел ${sectionName} подтвержден`);
+        }
+        return allFound;
+    }
+
+    function initializeSectionCache() {
+        if (isSectionCacheInitialized) return;
+
+        debugLog('initializeSectionCache: инициализация кэша разделов');
+        const sections = ['realty-offer', 'realty-map', 'realty', 'common'];
+        for (let section of sections) {
+            checkSection(section);
+        }
+        isSectionCacheInitialized = true;
+        debugLog('initializeSectionCache: кэш разделов инициализирован', { cache: sectionCache });
     }
 
     function getCurrentSection() {
-        const sections = ['realty-offer', 'realty-map', 'realty', 'common'];
-        for (let section of sections) {
-            if (checkSection(section)) {
-                return section;
-            }
-        }
+        initializeSectionCache();
+
+        if (sectionCache['realty-offer']) return 'realty-offer';
+        if (sectionCache['realty-map']) return 'realty-map';
+        if (sectionCache['realty']) return 'realty';
         return 'common';
+    }
+
+    function isRealtyOffer() {
+        initializeSectionCache();
+        return sectionCache['realty-offer'];
+    }
+
+    function isRealtyMap() {
+        initializeSectionCache();
+        return sectionCache['realty-map'];
+    }
+
+    function isRealty() {
+        initializeSectionCache();
+        return sectionCache['realty'];
+    }
+
+    function isCommon() {
+        initializeSectionCache();
+        return sectionCache['common'];
     }
 
     // ========== Глобальные переменные для margin-left ==========
@@ -154,6 +208,7 @@
 
     function getMarginLeft() {
         if (window.innerWidth >= MIN_WINDOW_WIDTH) {
+            debugLog('getMarginLeft: ширина окна >= 1720px, возвращаем 200');
             return 200;
         }
 
@@ -166,8 +221,10 @@
             const computedStyle = window.getComputedStyle(element);
             cachedMarginLeft = parseFloat(computedStyle.marginLeft) || 0;
             isMarginLeftInitialized = true;
+            debugLog('getMarginLeft: первичное вычисление', { marginLeft: cachedMarginLeft });
             return cachedMarginLeft;
         }
+        debugLog('getMarginLeft: элемент не найден, возвращаем 0');
         return 0;
     }
 
@@ -175,10 +232,12 @@
         const newWidth = window.innerWidth;
         if (newWidth !== windowWidth) {
             windowWidth = newWidth;
+            debugLog('refreshMarginLeftOnResize: ширина окна изменилась', { oldWidth: windowWidth, newWidth: newWidth });
 
             if (windowWidth >= MIN_WINDOW_WIDTH) {
                 cachedMarginLeft = 200;
                 isMarginLeftInitialized = true;
+                debugLog('refreshMarginLeftOnResize: ширина >= 1720px, установлено значение 200');
                 return;
             }
 
@@ -187,24 +246,32 @@
                 const computedStyle = window.getComputedStyle(element);
                 cachedMarginLeft = parseFloat(computedStyle.marginLeft) || 0;
                 isMarginLeftInitialized = true;
+                debugLog('refreshMarginLeftOnResize: обновлено значение margin-left', { marginLeft: cachedMarginLeft });
             }
         }
     }
 
     function isSideBlockVisible() {
         const sideBlock = document.getElementById('avito-side-address-block');
-        if (!sideBlock) return false;
-        return sideBlock.classList.contains('visible');
+        if (!sideBlock) {
+            debugLog('isSideBlockVisible: блок не найден в DOM');
+            return false;
+        }
+        const visible = sideBlock.classList.contains('visible');
+        debugLog('isSideBlockVisible', { visible });
+        return visible;
     }
 
     function processAddressElement(element) {
         const OVERLAY_DURATION = 250;
 
         if (element.dataset.avitoProcessed === 'true') {
+            debugLog('processAddressElement: элемент уже обработан');
             return;
         }
 
         const originalText = element.innerText.trim();
+        debugLog('processAddressElement: обработка элемента', { text: originalText });
 
         element.innerHTML = '';
         element.className = 'avito-address-copy';
@@ -231,6 +298,7 @@
 
         let overlayTimeout = null;
         element.addEventListener('click', function(e) {
+            debugLog('processAddressElement: клик по адресу', { text: originalText });
             overlay.classList.add('active');
 
             if (overlayTimeout) {
@@ -244,19 +312,26 @@
 
             const textToCopy = originalText;
             GM_setClipboard(textToCopy, 'text');
+            debugLog('processAddressElement: адрес скопирован', { text: textToCopy });
         });
     }
 
     function initCopyLinkFeature_RealtyOffer() {
-        const currentSection = getCurrentSection();
-        if (currentSection !== 'realty' && currentSection !== 'realty-offer') {
+        debugLog('initCopyLinkFeature_RealtyOffer: запуск метода');
+        initializeSectionCache();
+
+        if (!sectionCache['realty-offer']) {
+            debugLog('initCopyLinkFeature_RealtyOffer: метод недоступен для текущего раздела');
             return;
         }
 
         const marginLeft = getMarginLeft();
         if (marginLeft >= 150) {
+            debugLog('initCopyLinkFeature_RealtyOffer: метод отключен (marginLeft >= 150)', { marginLeft });
             return;
         }
+
+        debugLog('initCopyLinkFeature_RealtyOffer: метод запущен', { marginLeft });
 
         const DIV_HEIGHT = 60;
         const TRIGGER_ZONE_HEIGHT = 60;
@@ -332,18 +407,22 @@
         container.appendChild(text);
 
         document.body.appendChild(container);
+        debugLog('initCopyLinkFeature_RealtyOffer: контейнер создан и добавлен в DOM');
 
         function checkAndHideIfSidebarVisible() {
             if (isSideBlockVisible()) {
                 container.classList.add('hidden-by-sidebar');
+                debugLog('initCopyLinkFeature_RealtyOffer: блок скрыт (видна боковая панель)');
             } else {
                 container.classList.remove('hidden-by-sidebar');
+                debugLog('initCopyLinkFeature_RealtyOffer: блок показан (боковая панель скрыта)');
             }
         }
 
         setTimeout(checkAndHideIfSidebarVisible, 100);
 
         const sidebarObserver = new MutationObserver(function() {
+            debugLog('initCopyLinkFeature_RealtyOffer: MutationObserver сработал (изменение бокового блока)');
             checkAndHideIfSidebarVisible();
         });
 
@@ -353,6 +432,7 @@
                 attributes: true,
                 attributeFilter: ['class']
             });
+            debugLog('initCopyLinkFeature_RealtyOffer: настроен наблюдатель за боковым блоком');
         }
 
         let showTimeout = null;
@@ -363,6 +443,7 @@
 
         function showDiv() {
             if (container.classList.contains('hidden-by-sidebar')) {
+                debugLog('initCopyLinkFeature_RealtyOffer: попытка показать блок, но он скрыт боковой панелью');
                 return;
             }
 
@@ -377,6 +458,7 @@
             container.classList.remove('hide');
             container.classList.add('show');
             isDivVisible = true;
+            debugLog('initCopyLinkFeature_RealtyOffer: див показан');
         }
 
         function hideDiv() {
@@ -394,11 +476,13 @@
                 container.classList.remove('hide');
                 isDivVisible = false;
                 hideTimeout = null;
+                debugLog('initCopyLinkFeature_RealtyOffer: див скрыт');
             }, ANIMATION_DURATION_HIDE);
         }
 
         function tryShowWithDelay() {
             if (isSideBlockVisible()) {
+                debugLog('initCopyLinkFeature_RealtyOffer: попытка показать блок, но видна боковая панель');
                 return;
             }
 
@@ -442,6 +526,7 @@
         });
 
         container.addEventListener('click', function(e) {
+            debugLog('initCopyLinkFeature_RealtyOffer: клик по контейнеру');
             overlay.classList.add('active');
 
             if (overlayTimeout) {
@@ -460,6 +545,7 @@
             }
 
             GM_setClipboard(currentUrl, 'text');
+            debugLog('initCopyLinkFeature_RealtyOffer: ссылка скопирована', { url: currentUrl });
 
             const originalText = text.innerHTML;
             text.innerHTML = '✅ Ссылка скопирована!';
@@ -501,12 +587,14 @@
         });
 
         const bodyObserver = new MutationObserver(function() {
+            debugLog('initCopyLinkFeature_RealtyOffer: MutationObserver на body сработал');
             const sideBlock = document.getElementById('avito-side-address-block');
             if (sideBlock && !sidebarObserver.observe) {
                 sidebarObserver.observe(sideBlock, {
                     attributes: true,
                     attributeFilter: ['class']
                 });
+                debugLog('initCopyLinkFeature_RealtyOffer: боковой блок найден, настроен наблюдатель');
                 checkAndHideIfSidebarVisible();
             }
         });
@@ -515,17 +603,23 @@
             childList: true,
             subtree: true
         });
+        debugLog('initCopyLinkFeature_RealtyOffer: настроен MutationObserver на body');
     }
 
     function initCopyLocationFeature_RealtyMap() {
-        const currentSection = getCurrentSection();
-        if (currentSection !== 'realty' && currentSection !== 'realty-map') {
+        debugLog('initCopyLocationFeature_RealtyMap: запуск метода');
+        initializeSectionCache();
+
+        if (!sectionCache['realty-map']) {
+            debugLog('initCopyLocationFeature_RealtyMap: метод недоступен для текущего раздела');
             return;
         }
 
         const OVERLAY_DURATION = 250;
         let clickTimeout = null;
         let isProcessing = false;
+
+        debugLog('initCopyLocationFeature_RealtyMap: метод инициализирован');
 
         GM_addStyle(`
             .avito-location-copy {
@@ -567,10 +661,12 @@
 
         function processLocationElement(element) {
             if (element.dataset.avitoProcessed === 'true') {
+                debugLog('initCopyLocationFeature_RealtyMap: элемент уже обработан, пропускаем');
                 return;
             }
 
             const originalText = element.innerText.trim();
+            debugLog('initCopyLocationFeature_RealtyMap: обработка элемента', { text: originalText });
 
             element.innerHTML = '';
             element.className = 'avito-location-copy';
@@ -594,9 +690,11 @@
             element.appendChild(overlay);
 
             element.dataset.avitoProcessed = 'true';
+            debugLog('initCopyLocationFeature_RealtyMap: элемент обработан', { text: originalText });
 
             let overlayTimeout = null;
             element.addEventListener('click', function(e) {
+                debugLog('initCopyLocationFeature_RealtyMap: клик по элементу локации', { text: originalText });
                 overlay.classList.add('active');
 
                 if (overlayTimeout) {
@@ -610,59 +708,82 @@
 
                 const textToCopy = originalText;
                 GM_setClipboard(textToCopy, 'text');
+                debugLog('initCopyLocationFeature_RealtyMap: текст скопирован', { text: textToCopy });
             });
         }
 
         function findAndProcessLocationElements() {
             if (isProcessing) {
+                debugLog('initCopyLocationFeature_RealtyMap: уже идет обработка, пропускаем');
                 return;
             }
 
+            debugLog('initCopyLocationFeature_RealtyMap: запуск поиска и обработки элементов');
             isProcessing = true;
 
-            const elements = document.evaluate(
+            const element = document.evaluate(
                 "(//div[@data-marker='item-location'])[1]",
                 document,
                 null,
-                XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+                XPathResult.FIRST_ORDERED_NODE_TYPE,
                 null
-            );
+            ).singleNodeValue;
 
-            for (let i = 0; i < elements.snapshotLength; i++) {
-                const element = elements.snapshotItem(i);
-                if (element) {
-                    processLocationElement(element);
-                }
+            if (element) {
+                debugLog('initCopyLocationFeature_RealtyMap: элемент найден', {
+                    text: element.innerText.trim(),
+                    hasDataMarker: element.hasAttribute('data-marker')
+                });
+                processLocationElement(element);
+            } else {
+                debugLog('initCopyLocationFeature_RealtyMap: элемент не найден');
             }
 
             if (clickTimeout) {
                 clearTimeout(clickTimeout);
             }
             clickTimeout = setTimeout(() => {
+                debugLog('initCopyLocationFeature_RealtyMap: сброс флага processing (прошла 1 секунда)');
                 isProcessing = false;
                 clickTimeout = null;
             }, 1000);
         }
 
         document.addEventListener('click', function(e) {
+            if (e.button !== 0) return;
+
+            debugLog('initCopyLocationFeature_RealtyMap: клик левой кнопкой мыши, запуск проверки через 1 секунду');
+
             if (clickTimeout) {
                 clearTimeout(clickTimeout);
                 clickTimeout = null;
                 isProcessing = false;
+                debugLog('initCopyLocationFeature_RealtyMap: предыдущий таймер отменен');
             }
+
             clickTimeout = setTimeout(() => {
+                debugLog('initCopyLocationFeature_RealtyMap: таймер сработал, выполняем проверку DOM');
                 findAndProcessLocationElements();
             }, 1000);
         });
 
-        setTimeout(findAndProcessLocationElements, 500);
+        debugLog('initCopyLocationFeature_RealtyMap: запуск первоначальной обработки через 500ms');
+        setTimeout(() => {
+            debugLog('initCopyLocationFeature_RealtyMap: первоначальная обработка');
+            findAndProcessLocationElements();
+        }, 500);
     }
 
     function initCopyAddressFeature_RealtyOffer() {
-        const currentSection = getCurrentSection();
-        if (currentSection !== 'realty' && currentSection !== 'realty-offer') {
+        debugLog('initCopyAddressFeature_RealtyOffer: запуск метода');
+        initializeSectionCache();
+
+        if (!sectionCache['realty-offer']) {
+            debugLog('initCopyAddressFeature_RealtyOffer: метод недоступен для текущего раздела');
             return;
         }
+
+        debugLog('initCopyAddressFeature_RealtyOffer: метод запущен');
 
         GM_addStyle(`
             .avito-address-copy {
@@ -703,6 +824,7 @@
         `);
 
         function findAndProcessAddressElements() {
+            debugLog('initCopyAddressFeature_RealtyOffer: поиск элементов address');
             const elements = document.evaluate(
                 "//div[@itemprop='address']",
                 document,
@@ -711,53 +833,38 @@
                 null
             );
 
+            let count = 0;
             for (let i = 0; i < elements.snapshotLength; i++) {
                 const element = elements.snapshotItem(i);
                 if (element) {
+                    count++;
                     processAddressElement(element);
                 }
             }
+            debugLog('initCopyAddressFeature_RealtyOffer: найдено элементов', { count });
         }
 
-        const observer = new MutationObserver(function(mutations) {
-            let shouldCheck = false;
-
-            for (let mutation of mutations) {
-                if (mutation.addedNodes.length > 0) {
-                    shouldCheck = true;
-                    break;
-                }
-                if (mutation.type === 'attributes' || mutation.type === 'characterData') {
-                    const target = mutation.target;
-                    if (target.nodeType === Node.ELEMENT_NODE) {
-                        const element = target.closest('[itemprop="address"]');
-                        if (element && element.dataset.avitoProcessed !== 'true') {
-                            shouldCheck = true;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (shouldCheck) {
-                findAndProcessAddressElements();
-            }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            characterData: true,
-            attributeFilter: ['itemprop', 'class', 'style']
-        });
-
-        findAndProcessAddressElements();
+        // Выполняем проверку один раз после загрузки
+        if (document.readyState === 'complete') {
+            debugLog('initCopyAddressFeature_RealtyOffer: страница уже загружена, выполняем поиск');
+            findAndProcessAddressElements();
+        } else {
+            debugLog('initCopyAddressFeature_RealtyOffer: ожидание полной загрузки');
+            window.addEventListener('load', function() {
+                setTimeout(function() {
+                    debugLog('initCopyAddressFeature_RealtyOffer: страница загружена, выполняем поиск');
+                    findAndProcessAddressElements();
+                }, 300);
+            });
+        }
     }
 
     function initSideAddressBlock_RealtyOffer() {
-        const currentSection = getCurrentSection();
-        if (currentSection !== 'realty' && currentSection !== 'realty-offer') {
+        debugLog('initSideAddressBlock_RealtyOffer: запуск метода');
+        initializeSectionCache();
+
+        if (!sectionCache['realty-offer']) {
+            debugLog('initSideAddressBlock_RealtyOffer: метод недоступен для текущего раздела');
             return;
         }
 
@@ -768,6 +875,8 @@
 
         let ignoreMarginLeft = false;
         let ignoreTimeout = null;
+
+        debugLog('initSideAddressBlock_RealtyOffer: инициализация бокового блока');
 
         GM_addStyle(`
             .avito-side-address-block {
@@ -962,6 +1071,7 @@
 
         sideBlock.appendChild(addressWrapper);
         document.body.appendChild(sideBlock);
+        debugLog('initSideAddressBlock_RealtyOffer: боковой блок создан и добавлен в DOM');
 
         let originalAddressElement = null;
         let linkOverlayTimeout = null;
@@ -969,6 +1079,7 @@
         let lastBlockState = false;
 
         function updateBlockContent() {
+            debugLog('initSideAddressBlock_RealtyOffer: обновление содержимого блока');
             const addressElement = document.evaluate(
                 "//div[@itemprop='address']",
                 document,
@@ -983,20 +1094,25 @@
                     const textNode = addressElement.querySelector('.avito-address-content span:first-child');
                     if (textNode) {
                         textSpan.textContent = textNode.textContent;
+                        debugLog('initSideAddressBlock_RealtyOffer: адрес обновлен из обработанного элемента', { text: textNode.textContent });
                     } else {
                         textSpan.textContent = addressElement.innerText.trim();
+                        debugLog('initSideAddressBlock_RealtyOffer: адрес обновлен (innerText)', { text: addressElement.innerText.trim() });
                     }
                 } else {
                     textSpan.textContent = addressElement.innerText.trim();
+                    debugLog('initSideAddressBlock_RealtyOffer: адрес обновлен (оригинальный элемент)', { text: addressElement.innerText.trim() });
                 }
             } else if (!addressElement) {
                 originalAddressElement = null;
                 textSpan.textContent = '';
+                debugLog('initSideAddressBlock_RealtyOffer: элемент с адресом не найден');
             }
         }
 
         function updateBlockVisibility() {
             if (ignoreMarginLeft) {
+                debugLog('initSideAddressBlock_RealtyOffer: игнорирование margin-left (режим стабилизации)');
                 return;
             }
 
@@ -1004,50 +1120,75 @@
             let blockWidth = 0;
 
             const currentWidth = window.innerWidth;
+            debugLog('initSideAddressBlock_RealtyOffer: проверка видимости', { currentWidth });
 
             if (currentWidth >= MIN_WINDOW_WIDTH) {
                 const extraSpace = currentWidth - MIN_WINDOW_WIDTH;
                 blockWidth = (extraSpace / 2) + MIN_BLOCK_WIDTH;
                 shouldShow = true;
+                debugLog('initSideAddressBlock_RealtyOffer: ширина >= 1720px, блок показан по формуле', {
+                    extraSpace: extraSpace,
+                    blockWidth: blockWidth
+                });
             } else {
                 const marginLeft = getMarginLeft();
                 const minRequiredWidth = MIN_BLOCK_WIDTH + PADDING_LEFT + PADDING_RIGHT;
                 shouldShow = marginLeft >= minRequiredWidth;
                 blockWidth = marginLeft - PADDING_LEFT - PADDING_RIGHT;
+                debugLog('initSideAddressBlock_RealtyOffer: проверка через margin-left', {
+                    marginLeft: marginLeft,
+                    minRequiredWidth: minRequiredWidth,
+                    shouldShow: shouldShow,
+                    blockWidth: blockWidth
+                });
             }
 
             if (shouldShow && blockWidth >= MIN_BLOCK_WIDTH) {
                 sideBlock.style.width = blockWidth + 'px';
                 sideBlock.classList.add('visible');
                 if (!lastBlockState) {
+                    debugLog('initSideAddressBlock_RealtyOffer: блок ПОКАЗАН', {
+                        width: blockWidth + 'px',
+                        windowWidth: currentWidth
+                    });
                     lastBlockState = true;
 
                     if (ignoreTimeout) {
                         clearTimeout(ignoreTimeout);
                     }
                     ignoreMarginLeft = true;
+                    debugLog('initSideAddressBlock_RealtyOffer: включен режим игнорирования margin-left на 2 секунды');
 
                     ignoreTimeout = setTimeout(() => {
                         ignoreMarginLeft = false;
                         ignoreTimeout = null;
+                        debugLog('initSideAddressBlock_RealtyOffer: режим игнорирования margin-left ОТКЛЮЧЕН');
                         updateBlockVisibility();
                     }, 2000);
                 }
             } else {
                 sideBlock.classList.remove('visible');
                 if (lastBlockState) {
+                    debugLog('initSideAddressBlock_RealtyOffer: блок СКРЫТ', {
+                        reason: shouldShow ? 'blockWidth < MIN_BLOCK_WIDTH' : 'условие не выполнено',
+                        blockWidth: blockWidth,
+                        minBlockWidth: MIN_BLOCK_WIDTH,
+                        windowWidth: currentWidth
+                    });
                     lastBlockState = false;
                 }
             }
         }
 
         function updateBlock() {
+            debugLog('initSideAddressBlock_RealtyOffer: обновление блока');
             updateBlockContent();
             updateBlockVisibility();
         }
 
         button.addEventListener('click', function(e) {
             e.stopPropagation();
+            debugLog('initSideAddressBlock_RealtyOffer: клик по кнопке копирования ссылки');
 
             linkOverlay.classList.add('active');
 
@@ -1066,11 +1207,14 @@
                 currentUrl = currentUrl.substring(0, questionMarkIndex);
             }
             GM_setClipboard(currentUrl, 'text');
+            debugLog('initSideAddressBlock_RealtyOffer: ссылка скопирована', { url: currentUrl });
         });
 
         addressWrapper.addEventListener('click', function(e) {
             const textToCopy = textSpan.textContent;
             if (!textToCopy) return;
+
+            debugLog('initSideAddressBlock_RealtyOffer: клик по адресу', { text: textToCopy });
 
             addressOverlay.classList.add('active');
 
@@ -1084,76 +1228,42 @@
             }, OVERLAY_DURATION);
 
             GM_setClipboard(textToCopy, 'text');
+            debugLog('initSideAddressBlock_RealtyOffer: адрес скопирован', { text: textToCopy });
         });
 
         window.addEventListener('resize', function() {
+            debugLog('initSideAddressBlock_RealtyOffer: событие resize');
             refreshMarginLeftOnResize();
             updateBlockVisibility();
         });
 
-        const mutationObserver = new MutationObserver(function(mutations) {
-            let shouldUpdate = false;
-
-            for (let mutation of mutations) {
-                if (mutation.type === 'childList' || mutation.type === 'attributes' || mutation.type === 'characterData') {
-                    const target = mutation.target;
-                    if (target.nodeType === Node.ELEMENT_NODE) {
-                        const addressElement = target.closest('[itemprop="address"]');
-                        if (addressElement) {
-                            shouldUpdate = true;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (shouldUpdate) {
-                updateBlock();
-            }
-        });
-
-        mutationObserver.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            characterData: true,
-            attributeFilter: ['itemprop', 'class', 'style']
-        });
-
-        updateBlock();
+        // Убираем постоянный MutationObserver - делаем только одну проверку
+        // Выполняем обновление один раз после загрузки
+        function performInitialUpdate() {
+            debugLog('initSideAddressBlock_RealtyOffer: выполнение первоначального обновления');
+            updateBlock();
+        }
 
         if (document.readyState === 'complete') {
-            setTimeout(() => {
-                updateBlock();
-            }, 100);
-
-            setTimeout(() => {
-                updateBlock();
-            }, 500);
-
-            setTimeout(() => {
-                updateBlock();
-            }, 1000);
+            debugLog('initSideAddressBlock_RealtyOffer: страница уже загружена, выполняем обновление');
+            setTimeout(performInitialUpdate, 100);
         } else {
+            debugLog('initSideAddressBlock_RealtyOffer: ожидание полной загрузки');
             window.addEventListener('load', function() {
-                setTimeout(() => {
-                    updateBlock();
-                }, 100);
-
-                setTimeout(() => {
-                    updateBlock();
-                }, 500);
-
-                setTimeout(() => {
-                    updateBlock();
-                }, 1000);
+                setTimeout(function() {
+                    debugLog('initSideAddressBlock_RealtyOffer: страница загружена, выполняем обновление');
+                    performInitialUpdate();
+                }, 300);
             });
         }
     }
 
     function initSelectCharacteristics_RealtyOffer() {
-        const currentSection = getCurrentSection();
-        if (currentSection !== 'realty' && currentSection !== 'realty-offer') {
+        debugLog('initSelectCharacteristics_RealtyOffer: запуск метода');
+        initializeSectionCache();
+
+        if (!sectionCache['realty-offer']) {
+            debugLog('initSelectCharacteristics_RealtyOffer: метод недоступен для текущего раздела');
             return;
         }
 
@@ -1166,8 +1276,11 @@
         ).singleNodeValue;
 
         if (!ulElement) {
+            debugLog('initSelectCharacteristics_RealtyOffer: ulElement не найден');
             return;
         }
+
+        debugLog('initSelectCharacteristics_RealtyOffer: ulElement найден');
 
         const STORAGE_KEY = 'avito_selected_characteristics';
 
@@ -1227,8 +1340,11 @@
         function getSavedCharacteristics() {
             try {
                 const saved = localStorage.getItem(STORAGE_KEY);
-                return saved ? JSON.parse(saved) : [];
+                const parsed = saved ? JSON.parse(saved) : [];
+                debugLog('initSelectCharacteristics_RealtyOffer: загружены характеристики из localStorage', { count: parsed.length });
+                return parsed;
             } catch (e) {
+                debugLog('initSelectCharacteristics_RealtyOffer: ошибка чтения localStorage', { error: e });
                 return [];
             }
         }
@@ -1236,7 +1352,10 @@
         function saveCharacteristics(chars) {
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(chars));
-            } catch (e) {}
+                debugLog('initSelectCharacteristics_RealtyOffer: характеристики сохранены в localStorage', { count: chars.length });
+            } catch (e) {
+                debugLog('initSelectCharacteristics_RealtyOffer: ошибка сохранения в localStorage', { error: e });
+            }
         }
 
         const hintBlock = document.createElement('div');
@@ -1244,12 +1363,12 @@
         hintBlock.textContent = 'Кликните, чтобы выбрать "характеристика-значение", которые нужно всегда выводить в блоке краткой информации об объекте';
 
         ulElement.parentNode.insertBefore(hintBlock, ulElement.nextSibling);
+        debugLog('initSelectCharacteristics_RealtyOffer: блок-подсказка создан');
 
         let selectedCharacteristics = [];
         let isUlActive = false;
         let isHintHidden = false;
 
-        // Получаем все текущие li из ul
         function getCurrentLiTexts() {
             const liElements = ulElement.querySelectorAll('li');
             const texts = [];
@@ -1260,28 +1379,38 @@
         }
 
         function updateSideCharacteristics() {
+            debugLog('initSelectCharacteristics_RealtyOffer: обновление бокового блока характеристик');
             let charContainer = document.querySelector('.avito-side-characteristics');
 
             if (!charContainer) {
                 const sideBlock = document.getElementById('avito-side-address-block');
-                if (!sideBlock) return;
+                if (!sideBlock) {
+                    debugLog('initSelectCharacteristics_RealtyOffer: боковой блок не найден');
+                    return;
+                }
 
                 charContainer = document.createElement('div');
                 charContainer.className = 'avito-side-characteristics';
                 sideBlock.appendChild(charContainer);
+                debugLog('initSelectCharacteristics_RealtyOffer: создан контейнер для характеристик');
             }
 
             if (isHintHidden) {
                 charContainer.classList.add('show-remove');
+                debugLog('initSelectCharacteristics_RealtyOffer: показаны крестики удаления');
             } else {
                 charContainer.classList.remove('show-remove');
             }
 
             charContainer.innerHTML = '';
 
-            // Фильтруем только те характеристики, которые есть в текущем ul
             const currentLiTexts = getCurrentLiTexts();
             const validCharacteristics = selectedCharacteristics.filter(char => currentLiTexts.includes(char));
+
+            debugLog('initSelectCharacteristics_RealtyOffer: валидных характеристик', {
+                total: selectedCharacteristics.length,
+                valid: validCharacteristics.length
+            });
 
             if (validCharacteristics.length > 0) {
                 const title = document.createElement('div');
@@ -1302,7 +1431,7 @@
                     removeBtn.textContent = '✕';
                     removeBtn.addEventListener('click', function(e) {
                         e.stopPropagation();
-                        // Удаляем из общего списка
+                        debugLog('initSelectCharacteristics_RealtyOffer: удаление характеристики', { char });
                         const globalIndex = selectedCharacteristics.indexOf(char);
                         if (globalIndex !== -1) {
                             selectedCharacteristics.splice(globalIndex, 1);
@@ -1323,10 +1452,14 @@
 
                     charContainer.appendChild(charItem);
                 });
+                debugLog('initSelectCharacteristics_RealtyOffer: характеристики отображены', { count: validCharacteristics.length });
+            } else {
+                debugLog('initSelectCharacteristics_RealtyOffer: нет валидных характеристик для отображения');
             }
         }
 
         function updateLiStates() {
+            debugLog('initSelectCharacteristics_RealtyOffer: обновление состояния li элементов');
             const liElements = ulElement.querySelectorAll('li');
             liElements.forEach(li => {
                 const text = li.textContent.trim();
@@ -1338,33 +1471,37 @@
             });
         }
 
-        // Загружаем сохраненные характеристики и проверяем их наличие
         function loadAndApplySavedCharacteristics() {
+            debugLog('initSelectCharacteristics_RealtyOffer: загрузка сохраненных характеристик');
             const saved = getSavedCharacteristics();
-            if (saved.length === 0) return;
+            if (saved.length === 0) {
+                debugLog('initSelectCharacteristics_RealtyOffer: сохраненных характеристик нет');
+                return;
+            }
 
             const currentLiTexts = getCurrentLiTexts();
-            // Оставляем только те, которые есть в текущем ul
+            debugLog('initSelectCharacteristics_RealtyOffer: текущие li элементы', { count: currentLiTexts.length });
+
             const validSaved = saved.filter(char => currentLiTexts.includes(char));
+            debugLog('initSelectCharacteristics_RealtyOffer: валидные сохраненные характеристики', {
+                saved: saved,
+                validSaved: validSaved
+            });
 
             if (validSaved.length > 0) {
                 selectedCharacteristics = validSaved;
                 updateLiStates();
                 updateSideCharacteristics();
-                debugLog('initSelectCharacteristics_RealtyOffer: загружены валидные сохраненные характеристики', {
-                    saved: validSaved,
-                    allSaved: saved,
-                    currentLiTexts: currentLiTexts
+                debugLog('initSelectCharacteristics_RealtyOffer: применены сохраненные характеристики', {
+                    count: validSaved.length
                 });
             } else {
-                debugLog('initSelectCharacteristics_RealtyOffer: сохраненные характеристики не найдены в текущем ul', {
-                    saved: saved,
-                    currentLiTexts: currentLiTexts
-                });
+                debugLog('initSelectCharacteristics_RealtyOffer: сохраненные характеристики не найдены в текущем ul');
             }
         }
 
         function enableSelectionMode() {
+            debugLog('initSelectCharacteristics_RealtyOffer: включение режима выбора');
             isUlActive = true;
             ulElement.classList.add('avito-characteristics-ul');
             hintBlock.classList.add('active');
@@ -1374,6 +1511,7 @@
         }
 
         function disableSelectionMode() {
+            debugLog('initSelectCharacteristics_RealtyOffer: выключение режима выбора');
             isUlActive = false;
             ulElement.classList.remove('avito-characteristics-ul');
             hintBlock.classList.remove('active');
@@ -1386,6 +1524,7 @@
         }
 
         hintBlock.addEventListener('click', function() {
+            debugLog('initSelectCharacteristics_RealtyOffer: клик по блоку-подсказке');
             if (!isUlActive) {
                 enableSelectionMode();
             } else {
@@ -1397,10 +1536,14 @@
             li.addEventListener('click', function(e) {
                 e.stopPropagation();
 
-                if (!isUlActive) return;
+                if (!isUlActive) {
+                    debugLog('initSelectCharacteristics_RealtyOffer: клик по li, но режим выбора выключен');
+                    return;
+                }
 
                 const text = this.textContent.trim();
                 const index = selectedCharacteristics.indexOf(text);
+                debugLog('initSelectCharacteristics_RealtyOffer: клик по характеристике', { text, action: index === -1 ? 'добавление' : 'удаление' });
 
                 if (index === -1) {
                     selectedCharacteristics.push(text);
@@ -1419,77 +1562,76 @@
             });
         });
 
-        // Загружаем сохраненные характеристики
         loadAndApplySavedCharacteristics();
 
         hintBlock.classList.remove('hidden');
         isHintHidden = false;
         isUlActive = false;
         ulElement.classList.remove('avito-characteristics-ul');
+        debugLog('initSelectCharacteristics_RealtyOffer: инициализация завершена');
 
-        const observer = new MutationObserver(function() {
-            const existingLi = ulElement.querySelectorAll('li:not([data-avito-processed])');
-
-            existingLi.forEach(li => {
-                li.dataset.avitoProcessed = 'true';
-                const newLi = li.cloneNode(true);
-                li.parentNode.replaceChild(newLi, li);
-
-                newLi.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    if (!isUlActive) return;
-
-                    const text = this.textContent.trim();
-                    const index = selectedCharacteristics.indexOf(text);
-
-                    if (index === -1) {
-                        selectedCharacteristics.push(text);
-                        this.classList.add('selected');
-                    } else {
-                        selectedCharacteristics.splice(index, 1);
-                        this.classList.remove('selected');
-                    }
-
-                    saveCharacteristics(selectedCharacteristics);
-                    updateSideCharacteristics();
-
-                    if (selectedCharacteristics.length === 0) {
-                        disableSelectionMode();
-                    }
-                });
-            });
-
-            // При изменении ul перепроверяем валидность сохраненных характеристик
+        // Убираем постоянный MutationObserver - делаем только одну проверку
+        // Выполняем обновление один раз после загрузки
+        function performInitialUpdate() {
+            debugLog('initSelectCharacteristics_RealtyOffer: выполнение первоначального обновления');
+            // Проверяем валидность характеристик после загрузки
             const currentLiTexts = getCurrentLiTexts();
             const validCharacteristics = selectedCharacteristics.filter(char => currentLiTexts.includes(char));
             if (validCharacteristics.length !== selectedCharacteristics.length) {
+                debugLog('initSelectCharacteristics_RealtyOffer: обновление валидных характеристик', {
+                    before: selectedCharacteristics.length,
+                    after: validCharacteristics.length
+                });
                 selectedCharacteristics = validCharacteristics;
                 saveCharacteristics(selectedCharacteristics);
                 updateLiStates();
                 updateSideCharacteristics();
             }
-        });
+        }
 
-        observer.observe(ulElement, {
-            childList: true,
-            subtree: true
-        });
+        if (document.readyState === 'complete') {
+            debugLog('initSelectCharacteristics_RealtyOffer: страница уже загружена, выполняем обновление');
+            setTimeout(performInitialUpdate, 100);
+        } else {
+            debugLog('initSelectCharacteristics_RealtyOffer: ожидание полной загрузки');
+            window.addEventListener('load', function() {
+                setTimeout(function() {
+                    debugLog('initSelectCharacteristics_RealtyOffer: страница загружена, выполняем обновление');
+                    performInitialUpdate();
+                }, 300);
+            });
+        }
     }
 
+    // ========== Инициализация ==========
     function init() {
+        debugLog('init: запуск инициализации скрипта');
+
+        // Проверяем, загружена ли страница полностью
         if (document.readyState === 'complete') {
+            debugLog('init: страница уже полностью загружена');
+            initializeSectionCache();
+
             initCopyLinkFeature_RealtyOffer();
             initCopyLocationFeature_RealtyMap();
             initCopyAddressFeature_RealtyOffer();
             initSideAddressBlock_RealtyOffer();
             initSelectCharacteristics_RealtyOffer();
         } else {
+            debugLog('init: ожидание полной загрузки страницы');
+            // Ждем полной загрузки страницы
             window.addEventListener('load', function() {
-                initCopyLinkFeature_RealtyOffer();
-                initCopyLocationFeature_RealtyMap();
-                initCopyAddressFeature_RealtyOffer();
-                initSideAddressBlock_RealtyOffer();
-                initSelectCharacteristics_RealtyOffer();
+                debugLog('init: событие load, страница полностью загружена');
+                // Даем небольшую задержку для полной отрисовки DOM
+                setTimeout(function() {
+                    initializeSectionCache();
+
+                    initCopyLinkFeature_RealtyOffer();
+                    initCopyLocationFeature_RealtyMap();
+                    initCopyAddressFeature_RealtyOffer();
+                    initSideAddressBlock_RealtyOffer();
+                    initSelectCharacteristics_RealtyOffer();
+                }, 500);
             });
         }
     }
