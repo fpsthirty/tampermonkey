@@ -826,7 +826,7 @@
         function findAndProcessAddressElements() {
             debugLog('initCopyAddressFeature_RealtyOffer: поиск элементов address');
             const elements = document.evaluate(
-                "//div[@itemprop='address']",
+                "(//div[@id='item-view-address']//h2/following-sibling::div[1]//span)[1]",
                 document,
                 null,
                 XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
@@ -1081,7 +1081,7 @@
         function updateBlockContent() {
             debugLog('initSideAddressBlock_RealtyOffer: обновление содержимого блока');
             const addressElement = document.evaluate(
-                "//div[@itemprop='address']",
+                "(//div[@id='item-view-address']//h2/following-sibling::div[1]//span)[1]",
                 document,
                 null,
                 XPathResult.FIRST_ORDERED_NODE_TYPE,
