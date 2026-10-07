@@ -783,13 +783,26 @@
         );
         const targetElement = result.singleNodeValue;
 
+        let leftValue = null;
+
         if (targetElement) {
             const style = targetElement.getAttribute('style') || '';
             const leftMatch = style.match(/left:\s*([^;]+)/);
             if (leftMatch && leftMatch[1]) {
-                const leftValue = leftMatch[1].trim();
-                container.style.left = leftValue;
+                leftValue = leftMatch[1].trim();
             }
+        }
+
+        // Приводим значение к числу и проверяем через булево представление
+        const numericLeft = parseFloat(leftValue);
+
+        if (numericLeft) {
+            // Значение валидное и не равно нулю - показываем вкладки
+            container.style.left = leftValue;
+            container.style.display = 'flex';
+        } else {
+            // Значение отсутствует, не парсится или равно нулю - скрываем вкладки
+            container.style.display = 'none';
         }
     }
 
